@@ -61,12 +61,30 @@ def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5):
     assert dyy.shape == image.shape
     assert dxy.shape == image.shape
 
-    score = dxx * dyy - dxy ** 2 - alpha * (dxx + dyy) ** 2
+    scores = dxx * dyy - dxy ** 2 - alpha * (dxx + dyy) ** 2
     
-    print(score.max())
-    print(score.min())
-    print(score.mean())
-    ys, xs = np.where(score >= c_thr)
+    print(scores.max())
+    print(scores.min())
+    print(scores.mean())
+    ys, xs = np.where(scores >= c_thr)
+    score = scores[ys, xs]
+    print(scores)
+    print(score)
+    print(ys)
+    print(xs)
+    assert ys.shape == xs.shape
+    assert score.shape == ys.shape
+
+    # dt = np.dtype([('x', int), ('y',int), ('score', int)])
+    # a = np.array([(1,2,3), (2, 3, 4), (5,3, 1)])
+    # np.sort(a, order='score')
+    
+    # point = np.stack([ys, xs], axis=0).transpose(1, 0)
+    # temp = ((point[None, :, :] - point[:, None, :])**2).sum(axis=-1)
+    # print(temp)
+    # print(temp.shape)
+    # print(temp.mean())
+    
 
 
     # These are placeholders - replace with the coordinates of your interest points!
@@ -307,14 +325,15 @@ if __name__ == '__main__':
     # print(x1)
     # print(x1)
     # print(y1)
-    c_thr = 0.05
+    # c_thr = 0.05
+    c_thr = 0.1
     (x1, y1) = get_interest_points(image1, feature_width, c_thr=c_thr)
     (x2, y2) = get_interest_points(image2, feature_width, c_thr=c_thr)
     
     # print(x2)
     # print(y2)
     
-    image1_features = get_features(image1, x1, y1, feature_width)
-    image2_features = get_features(image2, x2, y2, feature_width)
-    matches, confidences = match_features(image1_features, image2_features, dist_thr=100, ratio_thr=0.9)
-    print(matches)
+    # image1_features = get_features(image1, x1, y1, feature_width)
+    # image2_features = get_features(image2, x2, y2, feature_width)
+    # matches, confidences = match_features(image1_features, image2_features, dist_thr=100, ratio_thr=0.9)
+    # print(matches)
