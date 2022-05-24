@@ -326,7 +326,7 @@ if __name__ == '__main__':
     # print(x1)
     # print(y1)
     # c_thr = 0.05
-    c_thr = 0.1
+    c_thr = 0.01
     (x1, y1) = get_interest_points(image1, feature_width, c_thr=c_thr)
     (x2, y2) = get_interest_points(image2, feature_width, c_thr=c_thr)
     
