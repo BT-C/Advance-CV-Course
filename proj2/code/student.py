@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import filters, feature, img_as_int
 from skimage.measure import regionprops
+from skimage.filters import _gaussian
 
 
-def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5):
+def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5, num_thr=10):
     '''
     Returns a set of interest points for the input image
 
@@ -48,7 +49,6 @@ def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5):
     # TODO: Your implementation here!
 
     H, W = image.shape
-    print(H, W)
     dx = get_x_gradient(image)
     dy = get_y_gradient(image)
     assert dx.shape == image.shape
@@ -63,18 +63,44 @@ def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5):
 
     scores = dxx * dyy - dxy ** 2 - alpha * (dxx + dyy) ** 2
     
-    print(scores.max())
-    print(scores.min())
-    print(scores.mean())
-    ys, xs = np.where(scores >= c_thr)
+    # print(scores.min())
+    # print(scores.mean())
+    # ys, xs = np.where(scores >= c_thr)
+    # score = scores[ys, xs]
+    # print(scores)
+    # print(score)
+    # print(ys)
+    # print(xs)
+    sort_index = np.argsort(scores.reshape(-1))[::-1]
+    ys, xs = sort_index // W, sort_index % W
     score = scores[ys, xs]
-    print(scores)
-    print(score)
-    print(ys)
-    print(xs)
-    assert ys.shape == xs.shape
+    thr_index = (score >= c_thr)
+    ys = ys[thr_index]
+    xs = xs[thr_index]
+    score = score[thr_index]
     assert score.shape == ys.shape
 
+    dist_x = xs[:, None] - xs[None, :]
+    dist_y = ys[:, None] - ys[None, :]
+    dist = (dist_x ** 2 + dist_y ** 2)
+
+    ans_ys = []
+    ans_xs = []
+    for i in range(dist.shape[0]):
+        if dist[i, i] == 0:
+            ans_ys.append(ys[i])
+            ans_xs.append(xs[i])
+        else:
+            continue
+        for j in range(i, dist.shape[1]):
+            if dist[i, j] < num_thr:
+                dist[j][j] = -1
+
+
+    ys = np.array(ans_ys)
+    xs = np.array(ans_xs)
+
+    print(len(ys))
     # dt = np.dtype([('x', int), ('y',int), ('score', int)])
     # a = np.array([(1,2,3), (2, 3, 4), (5,3, 1)])
     # np.sort(a, order='score')
@@ -85,6 +111,7 @@ def get_interest_points(image, feature_width, alpha=0.1, c_thr=0.5):
     # print(temp.shape)
     # print(temp.mean())
     
+    # sort_index = np.argsort(scores)
 
 
     # These are placeholders - replace with the coordinates of your interest points!
@@ -174,8 +201,10 @@ def get_features(image, x, y, feature_width):
     # TODO: Your implementation here! 
 
     # This is a placeholder - replace this with your features!
-    
+    import skimage
+
     features = []
+    image = skimage.filters.gaussian(image, sigma=1)
     h, w = image.shape
     for i in range(len(x)):
         feature = np.zeros((16, 8))
@@ -197,6 +226,7 @@ def get_features(image, x, y, feature_width):
                 feature[j//4 * 4 + k//4][index] += 1
 
         feature = feature.reshape(128)
+        feature = (feature - feature.mean()) / feature.var()
         features.append(feature)
 
 
@@ -325,10 +355,11 @@ if __name__ == '__main__':
     # print(x1)
     # print(x1)
     # print(y1)
-    # c_thr = 0.05
+    # c_thr = 0.13
     c_thr = 0.01
-    (x1, y1) = get_interest_points(image1, feature_width, c_thr=c_thr)
-    (x2, y2) = get_interest_points(image2, feature_width, c_thr=c_thr)
+    num_thr = 50
+    (x1, y1) = get_interest_points(image1, feature_width, c_thr=c_thr, num_thr=num_thr)
+    # (x2, y2) = get_interest_points(image2, feature_width, c_thr=c_thr)
     
     # print(x2)
     # print(y2)
