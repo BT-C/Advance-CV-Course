@@ -6,6 +6,28 @@ from glob import glob
 from random import shuffle
 from sklearn.svm import LinearSVC
 
+from turtle import distance
+import numpy as np
+import matplotlib
+from skimage.io import imread
+from PIL import Image
+from skimage.color import rgb2gray
+from skimage.transform import resize
+from scipy.spatial.distance import cdist
+
+def get_feature(file_list, cell_size, block_size):
+    feats = []
+    for i, file_name in enumerate(file_list):
+        img = imread(file_name)
+        img = (img - img.mean()) / img.var()
+        if len(img.shape) == 3:
+            img = img.mean(axis=-1)
+        img_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))
+        feats.append(img_feature)
+
+    feats = np.array(feats)
+#     print(feats.shape)
+    return feats
 
 def get_positive_features(train_path_pos, feature_params):
     """
@@ -51,11 +73,7 @@ def get_positive_features(train_path_pos, feature_params):
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = None
-
-
-
-
+    feats = get_feature(positive_files, 4, 4)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -101,7 +119,7 @@ def get_random_negative_features(non_face_scn_path, feature_params, num_samples)
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = None
+    feats = get_feature(negative_files, 4, 4)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -127,10 +145,9 @@ def train_classifier(features_pos, features_neg, C):
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    svm = None
-
-
-
+    svm = LinearSVC(C=C)
+    svm.fit(features_pos, [1 for _ in range(features_pos.shape[0])])
+    svm.fit(features_neg, [0 for _ in range(features_neg.shape[0])])
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################

@@ -1,8 +1,9 @@
+from turtle import distance
 import numpy as np
 import matplotlib
-# from skimage.io import imread
+from skimage.io import imread
 from PIL import Image
-from skimage.color import rgb2grey
+from skimage.color import rgb2gray
 from skimage.feature import hog
 from skimage.transform import resize
 from scipy.spatial.distance import cdist
@@ -42,8 +43,37 @@ def get_tiny_images(image_paths):
     '''
 
     #TODO: Implement this function!
+    output = []
+    output_size = 64
+    for i, file_name in enumerate(image_paths):
+        # if i == 10:
+        #     break
+        img = imread(file_name)
+        img = (img - img.mean()) / img.var()
+        # gray_img = rgb2gray(img)
+        resize_img = resize(img, (output_size, output_size))
+        if len(img.shape) == 3:
+            print(img.shape)
+        output.append(resize_img.reshape(-1))
 
-    return np.array([])
+    return np.array(output)
+
+def get_vocab_feature(image_paths):
+    z = 4
+    hog_feature_list = []
+    for i, file_name in enumerate(image_paths):
+        img = imread(file_name)
+        img = (img - img.mean()) / img.var()
+        img = resize(img, (200, 200))
+        hog_feature = hog(img, 9, cells_per_block=(z, z), pixels_per_cell=(z, z))
+        hog_feature = hog_feature.reshape(-1, z * z * 9)
+        hog_feature_list.append(hog_feature)
+        # print(type(hog_feature))
+        # print(hog_feature.shape)
+        # if i == 200:
+        #     break
+        
+    return hog_feature_list
 
 def build_vocabulary(image_paths, vocab_size):
     '''
@@ -121,9 +151,16 @@ def build_vocabulary(image_paths, vocab_size):
     '''
 
     #TODO: Implement this function!
-    
+    hog_feature_list = get_vocab_feature(image_paths)
+    hog_feature_array = np.concatenate(hog_feature_list, axis=0)
+    kmeans = MiniBatchKMeans(vocab_size).fit(hog_feature_array)
+    output = kmeans.cluster_centers_
+    # print(type(output))
+    # print(output.shape)
 
-    return np.array([])
+    return output
+    # return np.array([])
+
 
 def get_bags_of_words(image_paths):
     '''
@@ -157,11 +194,28 @@ def get_bags_of_words(image_paths):
 
     vocab = np.load('vocab.npy')
     print('Loaded vocab from file.')
+    print(vocab.shape)
 
     #TODO: Implement this function!
+    vocab_size = 200
+    hog_feature_list = get_vocab_feature(image_paths)
+    hog_feature_array = np.concatenate(hog_feature_list, axis=0)
+    # kmeans = MiniBatchKMeans(vocab_size).fit(hog_feature_array)
+    # kmeans_center = kmeans.cluster_centers_
+    kmeans_center = vocab
 
-    
-    return np.array([])
+    output_historgm = []
+    for i, hog_feature in enumerate(hog_feature_list):
+        # if i == 200:
+        #     break
+        feature_dist = cdist(hog_feature, kmeans_center)
+        # print(hog_feature.shape, kmeans_center.shape)
+        # print(feature_dist.shape)
+        dist_index = np.argsort(feature_dist, axis=1)
+        output_historgm.append(dist_index[:, 0].reshape(-1))
+        
+
+    return np.array(output_historgm)
 
 def svm_classify(train_image_feats, train_labels, test_image_feats):
     '''
@@ -189,8 +243,12 @@ def svm_classify(train_image_feats, train_labels, test_image_feats):
     '''
 
     # TODO: Implement this function!
-   
-    return np.array([])
+    clf = LinearSVC()
+    
+    clf.fit(train_image_feats, train_labels)
+    result = clf.predict(test_image_feats)
+    return result
+    # return np.array([])
 
 def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats):
     '''
@@ -231,7 +289,7 @@ def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)
         scipy.spatial.distance.cdist, np.argsort, scipy.stats.mode
     '''
 
-    k = 1
+    k = 5
 
     # Gets the distance between each test image feature and each train image feature
     # e.g., cdist
@@ -242,6 +300,52 @@ def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)
     # 2) Determine the labels of those k features
     # 3) Pick the most common label from the k
     # 4) Store that label in a list
+    sort_dist_index = np.argsort(distances, axis=1)
+    print(sort_dist_index.shape)
+    print(type(sort_dist_index))
+    print(sort_dist_index[0])
+    sort_dist_index = sort_dist_index.astype(int)
+    categories = ['Kitchen', 'Store', 'Bedroom', 'LivingRoom', 'Office',
+        'Industrial', 'Suburb', 'InsideCity', 'TallBuilding', 'Street',
+        'Highway', 'OpenCountry', 'Coast', 'Mountain', 'Forest']
+    label_dict = {categories[i] : i for i in range(len(categories))}
+    new_train_label = [train_labels[i] for i in range(len(train_labels))]
     
+    # print(train_labels.shape)
+    # print(type(train_labels))
+    output = []
+    for i in range(test_image_feats.shape[0]):
+        k_sort_label = np.array(train_labels)[sort_dist_index[i]][:k]
+        # print(len(k_sort_label))
+        # print(k_sort_label)
+        sort_label = [label_dict[k_sort_label[j]] for j in range(len(k_sort_label))]
+        sort_counts = np.bincount(sort_label)
+        test_label = np.argmax(sort_counts)
+        output.append(categories[test_label])
+    
+    return np.array(output)
 
-    return np.array([])
+
+if __name__ == '__main__':
+    data_path = '../data/'
+    categories = ['Kitchen', 'Store', 'Bedroom', 'LivingRoom', 'Office',
+        'Industrial', 'Suburb', 'InsideCity', 'TallBuilding', 'Street',
+        'Highway', 'OpenCountry', 'Coast', 'Mountain', 'Forest']
+    abbr_categories = ['Kit', 'Sto', 'Bed', 'Liv', 'Off', 'Ind', 'Sub',
+        'Cty', 'Bld', 'St', 'HW', 'OC', 'Cst', 'Mnt', 'For']
+    num_train_per_cat = 100
+
+    print('Getting paths and labels for all train and test data.')
+    from helpers import get_image_paths
+    train_image_paths, test_image_paths, train_labels, test_labels = \
+        get_image_paths(data_path, categories, num_train_per_cat)
+    # train_image_feats = get_tiny_images(train_image_paths)
+    vocab_size = 10
+    # vocab = build_vocabulary(train_image_paths, vocab_size)
+    train_feature = get_bags_of_words(train_image_paths)
+    test_feature = get_bags_of_words(test_image_paths)
+    output = svm_classify(train_feature, train_labels, test_feature)
+    print(output)
+    print(test_labels[:200])
+    # print(train_image_feats.shape)
+    
