@@ -144,7 +144,8 @@ def visualize_hog(svm, feature_params):
   n_cell = np.ceil(win_size/cell_size).astype('int')
 
   test_feat=svm.coef_ - np.min(svm.coef_)
-  test_feat =np.reshape(test_feat,[n_cell,n_cell,31])
+  # test_feat =np.reshape(test_feat,[n_cell,n_cell,31])
+  test_feat =np.reshape(test_feat,[n_cell,n_cell,9])
 
   radius=22
   orientations=9

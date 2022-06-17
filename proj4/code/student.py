@@ -194,8 +194,20 @@ def mine_hard_negs(non_face_scn_path, svm, feature_params):
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = None
-    
+#     feats = []
+#     block_size = 1
+#     for i, file_name in enumerate(negative_files):
+#         img = imread(file_name)
+#         img = resize(img, (win_size, win_size))
+#         hog_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))
+#         predict = svm.predict(np.array([hog_feature]))
+#         if predict == 1:
+#             feats.append(hog_feature)
+    feats = get_feature(negative_files, win_size, cell_size, 1)
+    predicts = svm.predict(feats)
+    feats = feats[predicts == 1]
+
+    feats = np.array(feats)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -268,9 +280,14 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
     cell_size = feature_params.get('hog_cell_size', 6)
     scale_factor = feature_params.get('scale_factor', 0.65)
     template_size = int(win_size / cell_size)
+    confidence_thr = 0.8
 
+    bboxes = []
+    confidences = []
+    
     for idx, im_filename in enumerate(im_filenames):
-        print('Detecting faces in {:s}'.format(im_filename))
+        print(idx, '/', len(im_filenames), end='\r')
+        # print('Detecting faces in {:s}'.format(im_filename), end='\r')
         im = load_image_gray(im_filename)
         im_id = osp.split(im_filename)[-1]
         im_shape = im.shape
@@ -290,15 +307,43 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         bbox_w = 36
         bbox_h = 36
         block_size = 1
+        face_bbox = []
         for scale_id, scale_factor in enumerate(multi_scale_factor):
-            print(im_shape)
+        #     print(im_shape)
             H, W = im_shape
-            scale_img = resize(im, im_shape * scale_factor)
-            print(scale_img.shape)
-            for i in range(0, H - bbox_h):
-                for j in range(0, W - bbox_w):
+            scale_img = resize(im, (int(H*scale_factor), int(W*scale_factor)))
+            H, W = scale_img
+        #     print(scale_img.shape)
+            temp_conf_list = []
+            temp_bboxes_list = []
+            for i in range(0, H - bbox_h - 1, bbox_h):
+                for j in range(0, W - bbox_w - 1, bbox_w):
                     temp_img = scale_img[i:i+bbox_h, j:j+bbox_w]
+                #     print(temp_img.shape)
+                    if temp_img.shape[0] == 0 or temp_img.shape[1] == 0:
+                        continue
+                    temp_img = resize(temp_img, (bbox_h, bbox_w))
                     img_feature = hog(temp_img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))                    
+                #     predict = svm.predict(np.array([img_feature]))
+                    temp_confidence = svm.decision_function(np.array([img_feature]))
+                #     print(temp_confidence.shape)
+                #     print([predict, temp_confidence])
+                #     print(temp_confidence)
+                    if temp_confidence > confidence_thr:
+                        confidences.append(temp_confidence)
+                        image_ids.append(im_filename.split('/')[-1])
+                        bboxes.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        # temp_conf_list.append(temp_confidence)
+                        # temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        # face_bbox.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+        #     print(len(temp_conf_list))                        
+        #     temp_conf_list = np.array(temp_conf_list)
+            
+        #     sort_temp_conf_list = np.argsort(temp_conf_list)[::-1][:]
+
+        # print(face_bbox)
+        # break 
+    
 
         # 3. image to hog feature
         # 4. sliding windows at scaled feature map. you can use horizontally 
@@ -329,7 +374,9 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         
 
 
-    return bboxes, confidences, image_ids
+#     return bboxes, confidences, image_ids
+#     print(np.array(confidences).shape)           
+    return np.array(bboxes), np.array(confidences).squeeze(), image_ids
 
 
 
@@ -342,5 +389,24 @@ if __name__ == '__main__':
     non_face_scn_path = osp.join(data_path, 'train_non_face_scenes')
     test_scn_path = osp.join(data_path, 'test_scenes', 'test_jpg')
     label_filename = osp.join(data_path, 'test_scenes', 'ground_truth_bboxes.txt')
+    num_negative_examples = 10000
+    features_pos = get_positive_features(train_path_pos, feature_params)
+    print(features_pos.shape)
+    features_neg = get_random_negative_features(non_face_scn_path, feature_params,
+                                               num_negative_examples)
+    svm = train_classifier(features_pos, features_neg, 5e-2)
+    hard_negs = mine_hard_negs(non_face_scn_path, svm, feature_params)
+    features_neg_2 = np.vstack((features_neg, hard_negs))
+    svm_2 = train_classifier(features_pos, features_neg_2, 5e-2)
+    print(hard_negs.shape)
+    
 
-    run_detector(test_scn_path, svm, feature_params, verbose=False)
+    bboxes, confidences, image_ids = run_detector(test_scn_path, svm, feature_params, verbose=False)
+    print(confidences.shape)
+    cond = confidences.squeeze()
+#     order = np.argsort(-cond)
+#     print(order)
+#     cond = cond[order]
+    gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections = evaluate_detections(bboxes, cond,
+                                                                                    image_ids, label_filename)
+    print(image_ids)
