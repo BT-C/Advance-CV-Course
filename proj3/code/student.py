@@ -63,9 +63,9 @@ def get_vocab_feature(image_paths):
     hog_feature_list = []
     for i, file_name in enumerate(image_paths):
         img = imread(file_name)
-        img = (img - img.mean()) / img.var()
+        # img = (img - img.mean()) / img.var()
         img = resize(img, (200, 200))
-        hog_feature = hog(img, 9, cells_per_block=(z, z), pixels_per_cell=(z, z))
+        hog_feature = hog(img, 9, cells_per_block=(z, z), pixels_per_cell=(z, z), feature_vector=True)
         hog_feature = hog_feature.reshape(-1, z * z * 9)
         hog_feature_list.append(hog_feature)
         # print(type(hog_feature))
@@ -153,7 +153,7 @@ def build_vocabulary(image_paths, vocab_size):
     #TODO: Implement this function!
     hog_feature_list = get_vocab_feature(image_paths)
     hog_feature_array = np.concatenate(hog_feature_list, axis=0)
-    kmeans = MiniBatchKMeans(vocab_size).fit(hog_feature_array)
+    kmeans = MiniBatchKMeans(n_clusters=vocab_size).fit(hog_feature_array)
     output = kmeans.cluster_centers_
     # print(type(output))
     # print(output.shape)
@@ -208,11 +208,16 @@ def get_bags_of_words(image_paths):
     for i, hog_feature in enumerate(hog_feature_list):
         # if i == 200:
         #     break
+        temp_historgm = [0 for _ in range(200)]
         feature_dist = cdist(hog_feature, kmeans_center)
         # print(hog_feature.shape, kmeans_center.shape)
         # print(feature_dist.shape)
         dist_index = np.argsort(feature_dist, axis=1)
-        output_historgm.append(dist_index[:, 0].reshape(-1))
+        dist_index = dist_index[:, 0].reshape(-1)
+        for index in dist_index:
+            temp_historgm[index] += 1
+        # output_historgm.append(dist_index[:, 0].reshape(-1))
+        output_historgm.append(temp_historgm)
         
 
     return np.array(output_historgm)
@@ -289,7 +294,7 @@ def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)
         scipy.spatial.distance.cdist, np.argsort, scipy.stats.mode
     '''
 
-    k = 5
+    k = 3
 
     # Gets the distance between each test image feature and each train image feature
     # e.g., cdist

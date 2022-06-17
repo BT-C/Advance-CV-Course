@@ -15,13 +15,14 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 from scipy.spatial.distance import cdist
 
-def get_feature(file_list, cell_size, block_size):
+def get_feature(file_list, template_size, cell_size, block_size):
     feats = []
     for i, file_name in enumerate(file_list):
-        img = imread(file_name)
-        img = (img - img.mean()) / img.var()
-        if len(img.shape) == 3:
-            img = img.mean(axis=-1)
+        img = load_image_gray(file_name)
+        img = resize(img, (template_size, template_size))
+        # img = (img - img.mean()) / img.var()
+        # if len(img.shape) == 3:
+        #     img = img.mean(axis=-1)
         img_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))
         feats.append(img_feature)
 
@@ -73,7 +74,7 @@ def get_positive_features(train_path_pos, feature_params):
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = get_feature(positive_files, 4, 4)
+    feats = get_feature(positive_files, win_size, cell_size, 1)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -119,7 +120,7 @@ def get_random_negative_features(non_face_scn_path, feature_params, num_samples)
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = get_feature(negative_files, 4, 4)
+    feats = get_feature(negative_files, win_size, cell_size, 1)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -146,8 +147,13 @@ def train_classifier(features_pos, features_neg, C):
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
     svm = LinearSVC(C=C)
-    svm.fit(features_pos, [1 for _ in range(features_pos.shape[0])])
-    svm.fit(features_neg, [0 for _ in range(features_neg.shape[0])])
+    train_data = np.concatenate([features_pos, features_neg], axis=0)
+    train_label = []
+    train_label.extend([1 for _ in range(features_pos.shape[0])])
+    train_label.extend([0 for _ in range(features_neg.shape[0])])
+#     svm.fit(features_pos, [1 for _ in range(features_pos.shape[0])])
+#     svm.fit(features_neg, [0 for _ in range(features_neg.shape[0])])
+    svm.fit(train_data, train_label)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -280,6 +286,20 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         #       for scala_rate in multi_scale_factor:
         #           scale img
         #           xxx
+        multi_scale_factor = [1.0, 0.7, 0.5, 0.3]
+        bbox_w = 36
+        bbox_h = 36
+        block_size = 1
+        for scale_id, scale_factor in enumerate(multi_scale_factor):
+            print(im_shape)
+            H, W = im_shape
+            scale_img = resize(im, im_shape * scale_factor)
+            print(scale_img.shape)
+            for i in range(0, H - bbox_h):
+                for j in range(0, W - bbox_w):
+                    temp_img = scale_img[i:i+bbox_h, j:j+bbox_w]
+                    img_feature = hog(temp_img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))                    
+
         # 3. image to hog feature
         # 4. sliding windows at scaled feature map. you can use horizontally 
         #    recurrence and and vertically recurrence
@@ -310,3 +330,17 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
 
 
     return bboxes, confidences, image_ids
+
+
+
+
+if __name__ == '__main__':
+    feature_params = {'template_size': 36, 'hog_cell_size': 6}
+    svm = None
+    data_path = osp.join('..','data')
+    train_path_pos = osp.join(data_path, 'caltech_faces', 'Caltech_CropFaces')
+    non_face_scn_path = osp.join(data_path, 'train_non_face_scenes')
+    test_scn_path = osp.join(data_path, 'test_scenes', 'test_jpg')
+    label_filename = osp.join(data_path, 'test_scenes', 'ground_truth_bboxes.txt')
+
+    run_detector(test_scn_path, svm, feature_params, verbose=False)
