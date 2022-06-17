@@ -23,7 +23,7 @@ def get_feature(file_list, template_size, cell_size, block_size):
         # img = (img - img.mean()) / img.var()
         # if len(img.shape) == 3:
         #     img = img.mean(axis=-1)
-        img_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))
+        img_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size), orientations=31)
         feats.append(img_feature)
 
     feats = np.array(feats)
@@ -280,7 +280,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
     cell_size = feature_params.get('hog_cell_size', 6)
     scale_factor = feature_params.get('scale_factor', 0.65)
     template_size = int(win_size / cell_size)
-    confidence_thr = 0.8
+    confidence_thr = 0
 
     bboxes = []
     confidences = []
@@ -303,39 +303,50 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         #       for scala_rate in multi_scale_factor:
         #           scale img
         #           xxx
-        multi_scale_factor = [1.0, 0.7, 0.5, 0.3]
+        multi_scale_factor = [1.0, 0.8, 0.7, 0.6, 0.5, 0.3]
+        # multi_scale_factor = [1.0]
         bbox_w = 36
         bbox_h = 36
         block_size = 1
         face_bbox = []
+        temp_conf_list = []
+        temp_bboxes_list = []
         for scale_id, scale_factor in enumerate(multi_scale_factor):
-        #     print(im_shape)
             H, W = im_shape
             scale_img = resize(im, (int(H*scale_factor), int(W*scale_factor)))
-            H, W = scale_img
-        #     print(scale_img.shape)
-            temp_conf_list = []
-            temp_bboxes_list = []
-            for i in range(0, H - bbox_h - 1, bbox_h):
-                for j in range(0, W - bbox_w - 1, bbox_w):
+            H, W = scale_img.shape
+            
+            step_size = bbox_w
+            for i in range(0, H - bbox_h - 1, step_size):
+                for j in range(0, W - bbox_w - 1, step_size):
                     temp_img = scale_img[i:i+bbox_h, j:j+bbox_w]
-                #     print(temp_img.shape)
                     if temp_img.shape[0] == 0 or temp_img.shape[1] == 0:
                         continue
                     temp_img = resize(temp_img, (bbox_h, bbox_w))
-                    img_feature = hog(temp_img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size))                    
+                    img_feature = hog(temp_img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size), orientations=31)                    
                 #     predict = svm.predict(np.array([img_feature]))
                     temp_confidence = svm.decision_function(np.array([img_feature]))
-                #     print(temp_confidence.shape)
-                #     print([predict, temp_confidence])
-                #     print(temp_confidence)
                     if temp_confidence > confidence_thr:
-                        confidences.append(temp_confidence)
-                        image_ids.append(im_filename.split('/')[-1])
-                        bboxes.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
-                        # temp_conf_list.append(temp_confidence)
-                        # temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        # confidences.append(temp_confidence)
+                        # image_ids.append(im_filename.split('/')[-1])
+                        # bboxes.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        temp_conf_list.append(temp_confidence)
+                        temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
                         # face_bbox.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+            # print(np.array(temp_bboxes_list).shape)
+        
+        temp_bboxes_list = np.array(temp_bboxes_list)
+        temp_conf_list = np.array(temp_conf_list).squeeze()
+        nms_index = non_max_suppression_bbox(temp_bboxes_list, temp_conf_list, [H, W])                
+        # print(nms_index)
+        # print(len(nms_index), len(temp_conf_list))
+        confidences.extend(temp_conf_list[nms_index])
+        bboxes.extend(temp_bboxes_list[nms_index])
+        temp_file_name = im_filename.split('/')[-1]
+        image_ids.extend([temp_file_name for _ in range(nms_index.sum())])
+        # print(image_ids)
+        # print(np.array(confidences).shape)
+        # break
         #     print(len(temp_conf_list))                        
         #     temp_conf_list = np.array(temp_conf_list)
             
