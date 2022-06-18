@@ -30,14 +30,12 @@ def my_imfilter(image, filter):
   filter_image = np.zeros((m + k - 1, n + l - 1, c))
   filter_image[k//2:m+k//2, l//2:n+l//2, :] = image
   filtered_image = np.zeros((m, n, c))
-  # print(filter_image[k//2:m+k//2, l//2:n+l//2, :].shape)
   for i in range(m):
     for j in range(n):
-      filtered_image[i, j, :] = np.sum((filter_image[i:i+k, j:j+l, :] * filter[:, :, None]).reshape(-1, 3), axis=0)
+      filtered_image[i, j, :] = np.sum(
+        (filter_image[i:i+k, j:j+l, :] * filter[:, :, None]).reshape(-1, 3), axis=0
+      )
 
-
-  # print(filtered_image.shape)
-  # assert filtered_image != None
 #####################################################################################################
 #                                               End                                                 #
 #####################################################################################################

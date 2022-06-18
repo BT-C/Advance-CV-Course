@@ -46,11 +46,8 @@ def get_tiny_images(image_paths):
     output = []
     output_size = 64
     for i, file_name in enumerate(image_paths):
-        # if i == 10:
-        #     break
         img = imread(file_name)
         img = (img - img.mean()) / img.var()
-        # gray_img = rgb2gray(img)
         resize_img = resize(img, (output_size, output_size))
         if len(img.shape) == 3:
             print(img.shape)
@@ -63,15 +60,10 @@ def get_vocab_feature(image_paths):
     hog_feature_list = []
     for i, file_name in enumerate(image_paths):
         img = imread(file_name)
-        # img = (img - img.mean()) / img.var()
         img = resize(img, (200, 200))
         hog_feature = hog(img, 9, cells_per_block=(z, z), pixels_per_cell=(z, z), feature_vector=True)
         hog_feature = hog_feature.reshape(-1, z * z * 9)
         hog_feature_list.append(hog_feature)
-        # print(type(hog_feature))
-        # print(hog_feature.shape)
-        # if i == 200:
-        #     break
         
     return hog_feature_list
 
@@ -155,11 +147,8 @@ def build_vocabulary(image_paths, vocab_size):
     hog_feature_array = np.concatenate(hog_feature_list, axis=0)
     kmeans = MiniBatchKMeans(n_clusters=vocab_size).fit(hog_feature_array)
     output = kmeans.cluster_centers_
-    # print(type(output))
-    # print(output.shape)
 
     return output
-    # return np.array([])
 
 
 def get_bags_of_words(image_paths):
@@ -253,7 +242,6 @@ def svm_classify(train_image_feats, train_labels, test_image_feats):
     clf.fit(train_image_feats, train_labels)
     result = clf.predict(test_image_feats)
     return result
-    # return np.array([])
 
 def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats):
     '''
@@ -316,13 +304,9 @@ def nearest_neighbor_classify(train_image_feats, train_labels, test_image_feats)
     label_dict = {categories[i] : i for i in range(len(categories))}
     new_train_label = [train_labels[i] for i in range(len(train_labels))]
     
-    # print(train_labels.shape)
-    # print(type(train_labels))
     output = []
     for i in range(test_image_feats.shape[0]):
         k_sort_label = np.array(train_labels)[sort_dist_index[i]][:k]
-        # print(len(k_sort_label))
-        # print(k_sort_label)
         sort_label = [label_dict[k_sort_label[j]] for j in range(len(k_sort_label))]
         sort_counts = np.bincount(sort_label)
         test_label = np.argmax(sort_counts)

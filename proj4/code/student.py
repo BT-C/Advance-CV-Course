@@ -17,17 +17,18 @@ from scipy.spatial.distance import cdist
 
 def get_feature(file_list, template_size, cell_size, block_size):
     feats = []
+    block_size = 1
     for i, file_name in enumerate(file_list):
         img = load_image_gray(file_name)
         img = resize(img, (template_size, template_size))
-        # img = (img - img.mean()) / img.var()
-        # if len(img.shape) == 3:
-        #     img = img.mean(axis=-1)
-        img_feature = hog(img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size), orientations=31)
+        img_feature = hog(
+            img, 
+            pixels_per_cell=(cell_size, cell_size), 
+            cells_per_block=(block_size, block_size), orientations=31
+        )
         feats.append(img_feature)
 
     feats = np.array(feats)
-#     print(feats.shape)
     return feats
 
 def get_positive_features(train_path_pos, feature_params):
@@ -74,7 +75,7 @@ def get_positive_features(train_path_pos, feature_params):
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = get_feature(positive_files, win_size, cell_size, 1)
+    feats = get_feature(positive_files, win_size, cell_size, win_size // cell_size)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -120,7 +121,7 @@ def get_random_negative_features(non_face_scn_path, feature_params, num_samples)
     ###########################################################################
     #                           TODO: YOUR CODE HERE                          #
     ###########################################################################
-    feats = get_feature(negative_files, win_size, cell_size, 1)
+    feats = get_feature(negative_files, win_size, cell_size, win_size // cell_size)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -151,8 +152,6 @@ def train_classifier(features_pos, features_neg, C):
     train_label = []
     train_label.extend([1 for _ in range(features_pos.shape[0])])
     train_label.extend([0 for _ in range(features_neg.shape[0])])
-#     svm.fit(features_pos, [1 for _ in range(features_pos.shape[0])])
-#     svm.fit(features_neg, [0 for _ in range(features_neg.shape[0])])
     svm.fit(train_data, train_label)
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -203,7 +202,7 @@ def mine_hard_negs(non_face_scn_path, svm, feature_params):
 #         predict = svm.predict(np.array([hog_feature]))
 #         if predict == 1:
 #             feats.append(hog_feature)
-    feats = get_feature(negative_files, win_size, cell_size, 1)
+    feats = get_feature(negative_files, win_size, cell_size, win_size // cell_size)
     predicts = svm.predict(feats)
     feats = feats[predicts == 1]
 
@@ -280,7 +279,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
     cell_size = feature_params.get('hog_cell_size', 6)
     scale_factor = feature_params.get('scale_factor', 0.65)
     template_size = int(win_size / cell_size)
-    confidence_thr = 0
+    confidence_thr = 0.6
 
     bboxes = []
     confidences = []
@@ -303,7 +302,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         #       for scala_rate in multi_scale_factor:
         #           scale img
         #           xxx
-        multi_scale_factor = [1.0, 0.8, 0.7, 0.6, 0.5, 0.3]
+        multi_scale_factor = [1.0, 0.7, 0.5, 0.3]
         # multi_scale_factor = [1.0]
         bbox_w = 36
         bbox_h = 36
@@ -320,41 +319,35 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
             for i in range(0, H - bbox_h - 1, step_size):
                 for j in range(0, W - bbox_w - 1, step_size):
                     temp_img = scale_img[i:i+bbox_h, j:j+bbox_w]
-                    if temp_img.shape[0] == 0 or temp_img.shape[1] == 0:
+                    if temp_img.shape[0] < bbox_h or temp_img.shape[1] < bbox_w:
                         continue
                     temp_img = resize(temp_img, (bbox_h, bbox_w))
-                    img_feature = hog(temp_img, pixels_per_cell=(cell_size, cell_size), cells_per_block=(block_size, block_size), orientations=31)                    
-                #     predict = svm.predict(np.array([img_feature]))
+                    img_feature = hog(
+                        temp_img, 
+                        pixels_per_cell=(cell_size, cell_size), 
+                        cells_per_block=(block_size, block_size), orientations=31
+                    )     
                     temp_confidence = svm.decision_function(np.array([img_feature]))
                     if temp_confidence > confidence_thr:
-                        # confidences.append(temp_confidence)
-                        # image_ids.append(im_filename.split('/')[-1])
-                        # bboxes.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
-                        temp_conf_list.append(temp_confidence)
-                        temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        confidences.append(temp_confidence)
+                        image_ids.append(im_filename.split('/')[-1])
+                        bboxes.append(
+                            [i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                        # temp_conf_list.append(temp_confidence)
+                        # temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
                         # face_bbox.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
             # print(np.array(temp_bboxes_list).shape)
         
-        temp_bboxes_list = np.array(temp_bboxes_list)
-        temp_conf_list = np.array(temp_conf_list).squeeze()
-        nms_index = non_max_suppression_bbox(temp_bboxes_list, temp_conf_list, [H, W])                
-        # print(nms_index)
-        # print(len(nms_index), len(temp_conf_list))
-        confidences.extend(temp_conf_list[nms_index])
-        bboxes.extend(temp_bboxes_list[nms_index])
-        temp_file_name = im_filename.split('/')[-1]
-        image_ids.extend([temp_file_name for _ in range(nms_index.sum())])
-        # print(image_ids)
-        # print(np.array(confidences).shape)
-        # break
-        #     print(len(temp_conf_list))                        
-        #     temp_conf_list = np.array(temp_conf_list)
-            
-        #     sort_temp_conf_list = np.argsort(temp_conf_list)[::-1][:]
-
-        # print(face_bbox)
-        # break 
-    
+        # temp_bboxes_list = np.array(temp_bboxes_list)
+        # temp_conf_list = np.array(temp_conf_list).squeeze()
+        
+        # nms_index = non_max_suppression_bbox(temp_bboxes_list, temp_conf_list, [H, W])                
+        # print(temp_conf_list.shape, temp_conf_list[nms_index].shape, nms_index.sum())
+        # confidences.extend(temp_conf_list[nms_index])
+        # bboxes.extend(temp_bboxes_list[nms_index])
+        # temp_file_name = im_filename.split('/')[-1]
+        # image_ids.extend([temp_file_name for _ in range(nms_index.sum())])
+        
 
         # 3. image to hog feature
         # 4. sliding windows at scaled feature map. you can use horizontally 
@@ -384,7 +377,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
 
         
 
-
+    print(np.array(bboxes).shape)
 #     return bboxes, confidences, image_ids
 #     print(np.array(confidences).shape)           
     return np.array(bboxes), np.array(confidences).squeeze(), image_ids
@@ -420,4 +413,4 @@ if __name__ == '__main__':
 #     cond = cond[order]
     gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections = evaluate_detections(bboxes, cond,
                                                                                     image_ids, label_filename)
-    print(image_ids)
+    # print(image_ids)
