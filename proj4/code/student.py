@@ -279,7 +279,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
     cell_size = feature_params.get('hog_cell_size', 6)
     scale_factor = feature_params.get('scale_factor', 0.65)
     template_size = int(win_size / cell_size)
-    confidence_thr = 0.6
+    confidence_thr = 0.5
 
     bboxes = []
     confidences = []
@@ -313,14 +313,20 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         for scale_id, scale_factor in enumerate(multi_scale_factor):
             H, W = im_shape
             scale_img = resize(im, (int(H*scale_factor), int(W*scale_factor)))
-            H, W = scale_img.shape
-            
+            # scale_img = resize(im, (50, 400))
+            # import cv2
+            # cv2.imwrite('show.jpg', scale_img)
+            # H, W = scale_img.shape
+
             step_size = bbox_w
             for i in range(0, H - bbox_h - 1, step_size):
                 for j in range(0, W - bbox_w - 1, step_size):
                     temp_img = scale_img[i:i+bbox_h, j:j+bbox_w]
                     if temp_img.shape[0] < bbox_h or temp_img.shape[1] < bbox_w:
                         continue
+                    # cv2.imwrite('t.jpg', temp_img)
+                    # import time
+                    # time.sleep(1)
                     temp_img = resize(temp_img, (bbox_h, bbox_w))
                     img_feature = hog(
                         temp_img, 
@@ -332,7 +338,9 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
                         confidences.append(temp_confidence)
                         image_ids.append(im_filename.split('/')[-1])
                         bboxes.append(
-                            [i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
+                            [j/scale_factor, i/scale_factor, (j + bbox_w)/scale_factor, (i + bbox_h)/scale_factor, ])\
+            
+        # return 
                         # temp_conf_list.append(temp_confidence)
                         # temp_bboxes_list.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
                         # face_bbox.append([i/scale_factor, j/scale_factor, (i + bbox_h)/scale_factor, (j + bbox_w)/scale_factor])
@@ -411,6 +419,6 @@ if __name__ == '__main__':
 #     order = np.argsort(-cond)
 #     print(order)
 #     cond = cond[order]
-    gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections = evaluate_detections(bboxes, cond,
-                                                                                    image_ids, label_filename)
+    # gt_ids, gt_bboxes, gt_isclaimed, tp, fp, duplicate_detections = evaluate_detections(bboxes, cond,
+    #                                                                                 image_ids, label_filename)
     # print(image_ids)
