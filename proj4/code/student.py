@@ -302,7 +302,7 @@ def run_detector(test_scn_path, svm, feature_params, verbose=False):
         #       for scala_rate in multi_scale_factor:
         #           scale img
         #           xxx
-        multi_scale_factor = [1.0, 0.7, 0.5, 0.3]
+        multi_scale_factor = [1.0, 0.7, 0.5, 0.4, 0.3, 0.2]
         # multi_scale_factor = [1.0]
         bbox_w = 36
         bbox_h = 36
